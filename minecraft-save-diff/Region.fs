@@ -8,13 +8,18 @@ module Region =
         |> List.chunkBySize size
         |> List.toArray
 
-    let getChunkLocations (mca : byte[]) =
+    let getChunkLocations (mca:byte[]) =
         mca.[0..4095]
         |> chunkArrayBySize 4
-        |> Array.map (fun [a;b;c;d] ->       
-            printfn "%A" (BitConverter.ToUInt32([|c;b;a;0uy|],0))
+        |> Array.map (fun [a;b;c;d] ->                   
             (BitConverter.ToInt32([|c;b;a;0uy|],0)*4096,d)
             )
+    let getTimeStamps (mca : byte[]) = 
+        mca.[4096..8191]
+        |> chunkArrayBySize 4
+        |> Array.map (fun list ->
+            BitConverter.ToInt32((Array.rev <| List.toArray list),0)
+            )        
 
     let getChunkByPos pos (mca:byte[]) =        
         let (offset,sectorCount) = (getChunkLocations mca).[pos]      
@@ -26,3 +31,4 @@ module Region =
     type RegionFile(region:byte[]) =         
         member this.getChunkLocations = getChunkLocations region        
         member this.getChunkByPos pos = getChunkByPos pos region
+        member this.getTimeStamps = getTimeStamps region
