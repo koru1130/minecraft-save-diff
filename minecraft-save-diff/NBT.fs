@@ -4,7 +4,7 @@ module NBT =
     
     type Name = string
 
-    type NBTPayload =        
+    type Payload =        
         | Byte of byte
         | Short of int16
         | Int of int
@@ -13,15 +13,15 @@ module NBT =
         | Double of double
         | ByteArray of byte[]
         | String of string
-        | List of NBTPayload[]
-        | Compound of Map<Name,NBTPayload>
+        | List of Payload[]
+        | Compound of Map<Name,Payload>
         | IntArray of int[]
     
-    type NBTTag = 
+    type Tag = 
         | End
-        | Tag of Name * NBTPayload
+        | Tag of Name * Payload
 
-    type NBTTypeID =
+    type TypeID =
         | TAG_END = 0uy
         | TAG_Byte = 1uy
         | TAG_Short = 2uy
@@ -67,53 +67,53 @@ module NBT =
             let temp = rev <| base.ReadBytes(2)
             System.BitConverter.ToUInt16(temp,0)
     
-    type NBTReader(stream: System.IO.Stream) =        
+    type Reader(stream: System.IO.Stream) =        
         inherit BigEndianBinaryReader(stream)
 
         member this.readType() = this.ReadByte()
 
         member this.readByte() = 
-            NBTPayload.Byte <| this.ReadByte()
+            Payload.Byte <| this.ReadByte()
         member this.readShort() =
-            NBTPayload.Short <| this.ReadInt16()
+            Payload.Short <| this.ReadInt16()
         member this.readInt() =
-            NBTPayload.Int <| this.ReadInt32()
+            Payload.Int <| this.ReadInt32()
         member this.readLong() =
-            NBTPayload.Long <| this.ReadInt64()
+            Payload.Long <| this.ReadInt64()
         member this.readFloat() =
-            NBTPayload.Float <| this.ReadSingle()
+            Payload.Float <| this.ReadSingle()
         member this.readDouble() =
-            NBTPayload.Double <| this.ReadDouble()                
+            Payload.Double <| this.ReadDouble()                
 
         member this.readByteArray() =
             let length = this.ReadInt32()
             this.ReadBytes(length)
-            |>NBTPayload.ByteArray
+            |>Payload.ByteArray
         member this.readString() =
             this.readName()
-            |>NBTPayload.String        
+            |>Payload.String        
         member this.readList() =
             let typeId = this.readType()
             let length = this.ReadInt32()
             let arr = Array.zeroCreate length
             for i in 0..(length-1) do
                 Array.set arr i <| this.readPayload typeId
-            NBTPayload.List <| arr
+            Payload.List <| arr
         member this.readCompound() =
             let rec loop accList =
                 match this.readTag() with
-                | NBTTag.End -> accList
-                | NBTTag.Tag (name,payload) -> loop <| (name,payload) :: accList
+                | Tag.End -> accList
+                | Tag.Tag (name,payload) -> loop <| (name,payload) :: accList
             loop []
             |>Map.ofList
-            |>NBTPayload.Compound
+            |>Payload.Compound
             
         member this.readIntArray() =
             let length = this.ReadInt32()
             let arr = Array.zeroCreate length
             for i in 0..(length-1) do
                 Array.set arr i <| this.ReadInt32()
-            NBTPayload.IntArray <| arr
+            Payload.IntArray <| arr
 
         member this.readName() = 
             let length = this.ReadUInt16()
@@ -121,7 +121,7 @@ module NBT =
             |>System.Text.Encoding.ASCII.GetString
                 
         member this.readPayload typeId =
-            match typeId with
+            match typeId with                
                 | 1uy -> this.readByte()
                 | 2uy -> this.readShort()
                 | 3uy -> this.readInt()
@@ -136,8 +136,8 @@ module NBT =
 
         member this.readTag() =
             match this.readType() with
-            | 0uy -> NBTTag.End
+            | 0uy -> Tag.End
             | typeId ->
                 let name = this.readName()
                 let payload = this.readPayload typeId
-                NBTTag.Tag (name,payload)
+                Tag.Tag (name,payload)
