@@ -14,7 +14,7 @@ module NBT =
         | ByteArray of byte[]
         | String of string
         | List of Payload[]
-        | Compound of Map<Name,Payload>
+        | Compound of Map<Name,Ref<Payload>>
         | IntArray of int[]
     
     type Tag = 
@@ -103,7 +103,7 @@ module NBT =
             let rec loop accList =
                 match this.readTag() with
                 | Tag.End -> accList
-                | Tag.Tag (name,payload) -> loop <| (name,payload) :: accList
+                | Tag.Tag (name,payload) -> loop <| (name,ref payload) :: accList
             loop []
             |>Map.ofList
             |>Payload.Compound
@@ -141,3 +141,11 @@ module NBT =
                 let name = this.readName()
                 let payload = this.readPayload typeId
                 Tag.Tag (name,payload)
+
+    let read (rawNBT:byte[]) =
+        let stream = new System.IO.MemoryStream(rawNBT)
+        let reader = new Reader(stream)
+        match reader.readTag() with
+        |Tag.End -> None
+        |Tag.Tag(name,payload) -> Some (ref payload)
+        
