@@ -35,12 +35,12 @@ module Region =
         Some(mca.[offset+4],mca.[offset+5..offset+3+length])
 
     let getChunkByPos pos (mca:byte[]) =
-        match getRawChunkByPos pos mca with
-            | None -> None
-            | Some(ct,chunk) ->
-                Some<|match ct with
+        getRawChunkByPos pos mca 
+        |>Option.map (fun (ct,chunk) -> 
+                        match ct with
                           |1uy -> Utils.gzipDecompress chunk
                           |2uy -> Utils.zlibDecompress chunk
+                          )
                           
     type RegionFile(region:byte[]) =         
         member this.getChunkLocations = getChunkLocations region        
