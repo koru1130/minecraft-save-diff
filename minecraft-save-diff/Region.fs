@@ -27,22 +27,24 @@ module Region =
             BitConverter.ToInt32((Array.rev <| List.toArray list),0)
             )
 
-    let getRawChunkByPos pos (mca:byte[]) =        
+    let getRawChunkByPos pos (mca:byte[]) =
+        if pos > 1023 || pos < 0 then None else
         let (offset,sectorCount) = (getChunkLocations mca).[pos]      
         if offset = 0 then None else
         let length = BitConverter.ToInt32(Array.rev mca.[offset..offset+3],0)
         if length = 0 then None else        
         Some(mca.[offset+4],mca.[offset+5..offset+3+length])
 
-    let getChunkByPos pos (mca:byte[]) =
+    let getChunkByPos (mca:byte[]) pos =
         getRawChunkByPos pos mca 
         |>Option.map (fun (ct,chunk) -> 
                         match ct with
                           |1uy -> Utils.gzipDecompress chunk
                           |2uy -> Utils.zlibDecompress chunk
+                          |_ -> failwith "error zip type"
                           )
                           
     type RegionFile(region:byte[]) =         
         member this.getChunkLocations = getChunkLocations region        
-        member this.getChunkByPos pos = getChunkByPos pos region
+        member this.getChunkByPos pos = getChunkByPos region pos
         member this.getTimeStamps = getTimeStamps region

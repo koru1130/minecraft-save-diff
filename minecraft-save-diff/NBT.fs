@@ -119,7 +119,7 @@ module NBT =
             let length = this.ReadUInt16()
             (this.ReadBytes(int length))
             |>System.Text.Encoding.ASCII.GetString
-                
+
         member this.readPayload typeId =
             match typeId with                
                 | 1uy -> this.readByte()
@@ -133,6 +133,7 @@ module NBT =
                 | 9uy -> this.readList()
                 | 10uy -> this.readCompound()
                 | 11uy -> this.readIntArray()
+                | _ -> failwith "error typeId"
 
         member this.readTag() =
             match this.readType() with
@@ -148,4 +149,44 @@ module NBT =
         match reader.readTag() with
         |Tag.End -> None
         |Tag.Tag(name,payload) -> Some (ref payload)
-        
+    
+    type DiffResult =
+    | Equal
+    | Diff of lhs:Option<Payload> * rhs:Option<Payload>
+    | Comp of Map<Name,DiffResult>
+    | List of DiffResult[]
+    
+    let rec diff lhs rhs =
+        let keysSet map = map |> Map.toSeq |> Seq.map fst |>Set.ofSeq
+
+        match (lhs,rhs) with
+        |(l,r) when l=r -> Equal
+        |(Payload.Compound l,Payload.Compound r) -> 
+            (keysSet l) + (keysSet r)
+            |>Set.toSeq
+            |>Seq.map (fun key ->
+                         let result = 
+                            match (Map.tryFind key l,Map.tryFind key r) with
+                            |(None,Some r) -> Diff(None,Some !r)
+                            |(Some l,None) -> Diff(Some !l,None)
+                            |(Some l,Some r) -> diff !l !r
+                            |_ -> failwith "error key"
+                         (key,result)
+                         )
+            |>Map.ofSeq
+            |>DiffResult.Comp
+        |(Payload.List l,Payload.List r) ->
+            let (length,other) = 
+                match compare l.Length r.Length with
+                | 1 -> (r.Length,Some l.[r.Length..])
+                | 0 -> (r.Length,None)
+                |(-1) -> (l.Length,Some r.[l.Length..])
+                |_-> failwith "error comapre result"
+            if length = 0 then Diff(Some lhs,Some rhs) else
+            Array.map2 diff l.[..length-1] r.[..length-1]
+            |>DiffResult.List
+                            
+            
+
+        |(l,r) -> Diff(Some l,Some r)
+            
