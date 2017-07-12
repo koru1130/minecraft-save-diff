@@ -12,6 +12,14 @@ module Utils =
     let zlibDecompress (byteArray:byte[]) =
         new Compression.DeflateStream(new MemoryStream(byteArray.[2..]),Compression.CompressionMode.Decompress)
         |>streamToArray
+
     let gzipDecompress (byteArray:byte[]) =
         new Compression.GZipStream(new MemoryStream(byteArray),Compression.CompressionMode.Decompress)
         |>streamToArray
+
+    let chunkArrayBySize size arr =
+        List.ofArray arr
+        |> List.chunkBySize size
+        |> List.toArray
+
+    

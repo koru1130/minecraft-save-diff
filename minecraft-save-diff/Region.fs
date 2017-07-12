@@ -3,14 +3,9 @@
 module Region =
     open System
 
-    let chunkArrayBySize size arr =
-        List.ofArray arr
-        |> List.chunkBySize size
-        |> List.toArray
-
     let getChunkLocations (mca:byte[]) =
         mca.[0..4095]
-        |> chunkArrayBySize 4
+        |> Utils.chunkArrayBySize 4
         |> Array.map (fun list ->
             let newList = List.rev list
             let offset = BitConverter.ToInt32 ( newList.Tail @ [0uy]
@@ -22,7 +17,7 @@ module Region =
         //    )
     let getTimeStamps (mca : byte[]) = 
         mca.[4096..8191]
-        |> chunkArrayBySize 4
+        |> Utils.chunkArrayBySize 4
         |> Array.map (fun list ->
             BitConverter.ToInt32((Array.rev <| List.toArray list),0)
             )
@@ -34,16 +29,17 @@ module Region =
         let length = BitConverter.ToInt32(Array.rev mca.[offset..offset+3],0)
         if length = 0 then None else        
         Some(mca.[offset+4],mca.[offset+5..offset+3+length])
-
-    let getChunkByPos (mca:byte[]) pos =
-        getRawChunkByPos pos mca 
         |>Option.map (fun (ct,chunk) -> 
                         match ct with
                           |1uy -> Utils.gzipDecompress chunk
                           |2uy -> Utils.zlibDecompress chunk
                           |_ -> failwith "error zip type"
                           )
-                          
+
+    let getChunkByPos (mca:byte[]) pos =
+        getRawChunkByPos pos mca
+        |>Option.bind NBT.parse
+         
     type RegionFile(region:byte[]) =         
         member this.getChunkLocations = getChunkLocations region        
         member this.getChunkByPos pos = getChunkByPos region pos

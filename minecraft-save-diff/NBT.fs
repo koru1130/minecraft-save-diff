@@ -16,7 +16,24 @@ module NBT =
         | List of Payload[]
         | Compound of Map<Name,Ref<Payload>>
         | IntArray of int[]
-    
+
+        static member get<'T> x =
+            let temp =
+                match x with 
+                | Byte x -> box x
+                | Short x -> box x
+                | Int x -> box x
+                | Long x -> box x
+                | Float x -> box x
+                | Double x -> box x
+                | ByteArray x -> box x
+                | String x -> box x
+                | List x -> box x
+                | Compound x -> box x
+                | IntArray x -> box x               
+
+            temp :?> 'T        
+
     type Tag = 
         | End
         | Tag of Name * Payload
@@ -143,7 +160,7 @@ module NBT =
                 let payload = this.readPayload typeId
                 Tag.Tag (name,payload)
 
-    let read (rawNBT:byte[]) =
+    let parse (rawNBT:byte[]) =
         let stream = new System.IO.MemoryStream(rawNBT)
         let reader = new Reader(stream)
         match reader.readTag() with
@@ -185,8 +202,6 @@ module NBT =
             if length = 0 then Diff(Some lhs,Some rhs) else
             Array.map2 diff l.[..length-1] r.[..length-1]
             |>DiffResult.List
-                            
-            
-
+                                        
         |(l,r) -> Diff(Some l,Some r)
             
