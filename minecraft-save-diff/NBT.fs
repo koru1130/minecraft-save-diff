@@ -165,7 +165,7 @@ module NBT =
         let reader = new Reader(stream)
         match reader.readTag() with
         |Tag.End -> None
-        |Tag.Tag(name,payload) -> Some (ref payload)
+        |Tag.Tag(name,payload) -> Some (payload)
     
     type DiffResult =
     | Equal
@@ -175,7 +175,6 @@ module NBT =
     
     let rec diff lhs rhs =
         let keysSet map = map |> Map.toSeq |> Seq.map fst |>Set.ofSeq
-
         match (lhs,rhs) with
         |(l,r) when l=r -> Equal
         |(Payload.Compound l,Payload.Compound r) -> 

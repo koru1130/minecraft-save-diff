@@ -59,8 +59,8 @@
     <Content Include="packages.config" />
     <Compile Include="Utils.fs" />
     <Compile Include="NBT.fs" />
-    <Compile Include="Region.fs" />
     <Compile Include="Chunk.fs" />
+    <Compile Include="Region.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
   <ItemGroup>

@@ -21,5 +21,11 @@ module Utils =
         List.ofArray arr
         |> List.chunkBySize size
         |> List.toArray
-
     
+    let byte2Nibbles byte =
+        let nibble1 = byte &&& 0x0Fuy
+        let nibble2 = byte &&& 0xF0uy >>> 4
+        [|nibble1;nibble2|]
+
+    let bytes2Nibbles bytes =
+        Array.collect byte2Nibbles bytes
