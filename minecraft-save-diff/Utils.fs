@@ -29,3 +29,18 @@ let bytes2Nibbles bytes =
     Array.collect byte2Nibbles bytes
 
 let keysSet map = map |> Map.toSeq |> Seq.map fst |>Set.ofSeq
+
+type DiffResult<'T> =
+| Diff of 'T *'T
+| Same of 'T
+type OptionDiffResult<'T> =
+| OptionDiff of 'T option*'T option
+| OptionSame of 'T option
+let diff lhs rhs = 
+    match lhs=rhs with
+    |true -> Same lhs
+    |false -> Diff(lhs,rhs)
+let optionDiff lhs rhs = 
+    match lhs=rhs with
+    |true -> OptionSame lhs
+    |false -> OptionDiff(lhs,rhs)

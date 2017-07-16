@@ -165,30 +165,29 @@ let parse (rawNBT:byte[]) =
     |Tag.End -> None
     |Tag.Tag(name,payload) -> Some (payload)
 
-type DiffResult =
-| Same
+type NBTDiffResult =
+| Same of Payload option
 | Diff of lhs:Option<Payload> * rhs:Option<Payload>
-| Comp of Map<Name,DiffResult>
-| List of DiffResult[]
+| Comp of Map<Name,NBTDiffResult>
+| List of NBTDiffResult[]
 
 let rec diff lhs rhs =
     let keysSet = Utils.keysSet
     match (lhs,rhs) with
-    |(l,r) when l=r -> Same
+    |(l,r) when l=r -> Same <| Some lhs
     |(Payload.Compound l,Payload.Compound r) -> 
         (keysSet l) + (keysSet r)
         |>Set.toSeq
-        |>Seq.map (fun key ->
-                     let result = 
-                        match (Map.tryFind key l,Map.tryFind key r) with
-                        |(None,Some r) -> Diff(None,Some !r)
-                        |(Some l,None) -> Diff(Some !l,None)
-                        |(Some l,Some r) -> diff !l !r
-                        |_ -> failwith "error key"
-                     (key,result)
-                     )
+        |>Seq.map 
+            (fun key ->
+                let result = 
+                   diffOption
+                       (Option.map (!) (Map.tryFind key l))
+                       (Option.map (!) (Map.tryFind key r))                     
+                (key,result)
+            )
         |>Map.ofSeq
-        |>DiffResult.Comp
+        |>Comp
     |(Payload.List l,Payload.List r) ->
         let (length,other) = 
             match compare l.Length r.Length with
@@ -198,7 +197,13 @@ let rec diff lhs rhs =
             |_-> failwith "error comapre result"
         if length = 0 then Diff(Some lhs,Some rhs) else
         Array.map2 diff l.[..length-1] r.[..length-1]
-        |>DiffResult.List
+        |>List
                                     
     |(l,r) -> Diff(Some l,Some r)
-        
+
+and diffOption lhs rhs =
+    match (lhs,rhs) with
+    |(None,Some r) -> Diff(None,Some r)
+    |(Some l,None) -> Diff(Some l,None)
+    |(Some l,Some r) -> diff l r
+    |(None , None) -> Same None

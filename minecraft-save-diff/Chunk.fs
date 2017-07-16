@@ -1,4 +1,5 @@
 ﻿module Chunk
+open Utils
 
 type Section = {
     Y: byte;
@@ -79,20 +80,19 @@ let tryParse nbt =
 
 type Block = {
     blockID: int;
-    data: byte;
-    dataTag: NBT.Payload option;        
+    data: byte; 
+    blockLight: byte;
+    skyLight: byte;
+    dataTag: NBT.Payload option;
 }        
-let createBlocks blockID data dataTag = 
+let createBlocks blockID data blockLight skyLight dataTag = 
     {
         blockID=blockID;
         data=data;
+        blockLight=blockLight;
+        skyLight=skyLight;
         dataTag=dataTag;
     }
-
-type Light = {
-    blockLight: byte;
-    skyLight: byte;
-}
 
 type Cord = {
     x: int;
@@ -128,18 +128,59 @@ let getBlocks chunk =
                 match section.Add with
                 | Some add -> Array.map2 (fun block add -> int block + ((int add)<<<8) ) section.Blocks add
                 | None -> Array.map int section.Blocks                
-            let blocks = Array.map2 createBlocks blockIDs section.Data
-            let lights = Array.map2 (fun blockLight skyLight -> {blockLight=blockLight; skyLight=skyLight}) section.BlockLight section.SkyLight
-            Array.mapi2 
-                (fun pos block light ->
+            Array.map createBlocks blockIDs
+            |>Array.map2 (|>) section.Data
+            |>Array.map2 (|>) section.BlockLight
+            |>Array.map2 (|>) section.SkyLight
+            |>Array.mapi
+                (fun pos block ->
                     let (x,y,z) = pos2Cord pos
                     let cord = {
                         x = x + chunk.xPos*16;
                         z = z + chunk.zPos*16;
                         y = y + (int section.Y)*16;
                     }
-                    (cord,(block <| Map.tryFind cord tileEntities,light))
+                    (cord,(block <| Map.tryFind cord tileEntities))
                 )
-                blocks lights
         )
     |>Map.ofArray
+
+type BlockDiffResultRecord = {
+    blockID: int DiffResult;
+    data: byte DiffResult; 
+    blockLight: byte DiffResult;
+    skyLight: byte DiffResult;
+    dataTag: NBT.NBTDiffResult;
+}
+
+type BlockDiffResult =
+| Change of BlockDiffResultRecord
+| Add of Block
+| Del of Block
+
+let diffBlock (lhs:Block) rhs =
+    match lhs=rhs with
+    |true -> None
+    |false -> 
+        {
+            blockID=diff lhs.blockID rhs.blockID
+            data=diff lhs.data rhs.data
+            blockLight=diff lhs.blockLight rhs.blockLight
+            skyLight= diff lhs.skyLight rhs.skyLight
+            dataTag = NBT.diffOption lhs.dataTag rhs.dataTag
+        }
+        |>Some
+        
+let diffBlocks lhs rhs =
+    (keysSet lhs) + (keysSet rhs)
+    |>Set.toSeq
+    |>Seq.choose
+     (fun key ->        
+          match (Map.tryFind key lhs),(Map.tryFind key rhs) with
+          |(Some l , Some r) -> Option.map Change (diffBlock l r)           
+          |(Some l , None) -> Some <| Del l
+          |(None , Some r) -> Some <| Add r
+          |(None , None) -> failwith "error key"
+          |>Option.map (fun x->(key,x))        
+     )
+     |>Map.ofSeq
