@@ -198,11 +198,12 @@ let rec diff lhs rhs =
         if length = 0 then Diff(Some lhs,Some rhs) else
         Array.map2 diff l.[..length-1] r.[..length-1]
         |>List
-                                    
+        
     |(l,r) -> Diff(Some l,Some r)
 
 and diffOption lhs rhs =
     match (lhs,rhs) with
+    |(l,r) when l=r -> Same l
     |(None,Some r) -> Diff(None,Some r)
     |(Some l,None) -> Diff(Some l,None)
     |(Some l,Some r) -> diff l r

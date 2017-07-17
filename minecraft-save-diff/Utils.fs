@@ -28,19 +28,35 @@ let byte2Nibbles byte =
 let bytes2Nibbles bytes =
     Array.collect byte2Nibbles bytes
 
-let keysSet map = map |> Map.toSeq |> Seq.map fst |>Set.ofSeq
+let inline keysSet map = map |> Map.toSeq |> Seq.map fst |>Set.ofSeq
 
-type DiffResult<'T> =
-| Diff of 'T *'T
+type DiffResult<'T,'U> =
+| Diff of 'U
+| Add of 'T
+| Del of 'T
 | Same of 'T
-type OptionDiffResult<'T> =
-| OptionDiff of 'T option*'T option
-| OptionSame of 'T option
-let diff lhs rhs = 
+| NN 
+
+let inline diff lhs rhs = 
     match lhs=rhs with
     |true -> Same lhs
     |false -> Diff(lhs,rhs)
-let optionDiff lhs rhs = 
-    match lhs=rhs with
-    |true -> OptionSame lhs
-    |false -> OptionDiff(lhs,rhs)
+
+let diffOption lhs rhs = 
+    match (lhs,rhs) with
+    |(Some l,Some r) when l=r -> Same l
+    |(Some l,Some r) -> Diff(l,r)
+    |(Some l,None) -> Del l
+    |(None,Some r) -> Add r
+    |(None,None) -> NN
+
+let divRem a b =
+    let rem = a%b
+    let div = (a-rem)/b
+    (div,rem)
+
+let inline (!~) (l:Lazy<'T>) = l.Value
+
+let inline lazyDiff lhs rhs =
+    lazy
+        diff lhs rhs
