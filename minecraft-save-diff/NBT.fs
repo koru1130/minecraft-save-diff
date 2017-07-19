@@ -190,63 +190,63 @@ let parse (rawNBT:byte[]) =
     |Tag.End -> None
     |Tag.Tag(name,payload) -> Some (payload)
 
-type NBTDiffResult =
-| Same of Payload option
-| Diff of lhs:Option<Payload> * rhs:Option<Payload>
-| Comp of Map<Name,NBTDiffResult>
-| List of NBTDiffResult[]
-    static member toStringTree outputAddDel rootName x =
-        match x with
-        | Comp x ->
-            x
-            |>Map.map (NBTDiffResult.toStringTree outputAddDel)
-            |>Map.toList
-            |>List.map snd
-            |>fun x -> Branch (rootName,x)
-        | List x ->
-            x 
-            |>Array.mapi (fun i x -> NBTDiffResult.toStringTree outputAddDel (string i) x)
-            |>fun x -> Branch (rootName,List.ofArray x)
-        | Diff (l,r) -> 
-            match (l,r) with
-            |(Some l,Some r) ->
-                match (l,r) with
-                |(Compound _,_)|(_,Compound _)|(Payload.List _,_)|(_,Payload.List _) as x -> 
-                    let (l,r) = x
-                    Branch (rootName,[l.StringTree;Leaf " -> ";r.StringTree])
-                |(l,r) ->
-                    match (l.ToString(),r.ToString()) with
-                    |(Line l,Line r) -> Leaf (rootName + ": " + l+" -> "+r)
-                    |(Line l,Lines r) -> Branch (rootName,Leaf (l+" ->")::List.map Leaf r)
-                    |(Lines l,Line r) -> Branch (rootName,List.map Leaf l@[Leaf(" -> "+r)])
-                    |(Lines l,Lines r) -> Branch (rootName,List.map Leaf l@Leaf " ->"::List.map Leaf r)
-            |(Some l,None) -> 
-                match outputAddDel with
-                |(_,false) -> Leaf ""
-                |(_,true) ->                    
-                    match l with 
-                    |(Compound _)|(Payload.List _) as x -> Branch (rootName,[Leaf "-";x.StringTree])
-                    |x  -> 
-                        match x.ToString() with
-                        |Line x -> Leaf (rootName + ": -" + x)
-                        |Lines x -> Branch (rootName,Leaf "-" :: List.map Leaf x)
-            |(None,Some r) ->
-                match outputAddDel with
-                |(false,_) -> Leaf ""
-                |(true,_) ->
-                    match r with 
-                    |(Compound _)|(Payload.List _) as x -> Branch (rootName,[Leaf "+";x.StringTree])
-                    |x  -> 
-                        match x.ToString() with
-                        |Line x -> Leaf (rootName + ": +" + x)
-                        |Lines x -> Branch (rootName,Leaf "+" :: List.map Leaf x)
-            |(None,None) -> failwith "WTF"
-        | Same _ -> Leaf ""
+//type NBTDiffResult =
+//| Same of Payload
+//| Diff of lhs:Option<Payload> * rhs:Option<Payload>
+//| Comp of Map<Name,NBTDiffResult>
+//| List of NBTDiffResult[]
+type NBTDiffResult = DiffResult<Payload,Payload*Payload>
+
+let rec NBTDiffResultToStringTree outputAddDel rootName x =
+    match x with
+    | DiffComp x ->
+        x
+        |>Map.map (NBTDiffResultToStringTree outputAddDel)
+        |>Map.toList
+        |>List.map snd
+        |>fun x -> Branch (rootName,x)
+    | DiffList x ->
+        x 
+        |>List.mapi (fun i x -> NBTDiffResultToStringTree outputAddDel (string i) x)
+        |>fun x -> Branch (rootName,x)
+    | Diff (l,r) ->         
+        match (l,r) with
+        |(Compound _,_)|(_,Compound _)|(Payload.List _,_)|(_,Payload.List _) as x -> 
+            let (l,r) = x
+            Branch (rootName,[l.StringTree;Leaf " -> ";r.StringTree])
+        |(l,r) ->
+            match (l.ToString(),r.ToString()) with
+            |(Line l,Line r) -> Leaf (rootName + ": " + l+" -> "+r)
+            |(Line l,Lines r) -> Branch (rootName,Leaf (l+" ->")::List.map Leaf r)
+            |(Lines l,Line r) -> Branch (rootName,List.map Leaf l@[Leaf(" -> "+r)])
+            |(Lines l,Lines r) -> Branch (rootName,List.map Leaf l@Leaf " ->"::List.map Leaf r)
+    | Del x ->
+        match outputAddDel with
+        |(_,false) -> Leaf ""
+        |(_,true) ->                    
+            match x with 
+            |(Compound _)|(Payload.List _) as x -> Branch (rootName,[Leaf "-";x.StringTree])
+            |x  -> 
+                match x.ToString() with
+                |Line x -> Leaf (rootName + ": -" + x)
+                |Lines x -> Branch (rootName,Leaf "-" :: List.map Leaf x)
+    | Add x ->
+        match outputAddDel with
+        |(false,_) -> Leaf ""
+        |(true,_) ->
+            match x with 
+            |(Compound _)|(Payload.List _) as x -> Branch (rootName,[Leaf "+";x.StringTree])
+            |x  -> 
+                match x.ToString() with
+                |Line x -> Leaf (rootName + ": +" + x)
+                |Lines x -> Branch (rootName,Leaf "+" :: List.map Leaf x)    
+    |NN -> failwith "WTF"
+    | Same _ -> Leaf ""
 
 let rec diff lhs rhs =
     let keysSet = Utils.keysSet
     match (lhs,rhs) with
-    |(l,r) when l=r -> Same <| Some lhs
+    |(l,r) when l=r -> Same lhs
     |(Payload.Compound l,Payload.Compound r) -> 
         (keysSet l) + (keysSet r)
         |>Set.toSeq
@@ -259,7 +259,7 @@ let rec diff lhs rhs =
                 (key,result)
             )
         |>Map.ofSeq
-        |>Comp
+        |>DiffComp
     |(Payload.List l,Payload.List r) ->
         let (length,other) = 
             match compare l.Length r.Length with
@@ -267,17 +267,18 @@ let rec diff lhs rhs =
             | 0 -> (r.Length,None)
             |(-1) -> (l.Length,Some r.[l.Length..])
             |_-> failwith "error comapre result"
-        if length = 0 then Diff(Some lhs,Some rhs) else
+        if length = 0 then Diff(lhs,rhs) else
         Array.map2 diff l.[..length-1] r.[..length-1]
-        |>List
+        |>Array.toList
+        |>DiffList
         
-    |(l,r) -> Diff(Some l,Some r)
+    |(l,r) -> Diff(l,r)
 
 and diffOption lhs rhs =
     match (lhs,rhs) with
-    |(l,r) when l=r -> Same l
-    |(None,Some r) -> Diff(None,Some r)
-    |(Some l,None) -> Diff(Some l,None)
+    |(Some l,Some r) when l=r -> Same l
+    |(None,Some r) -> Add r
+    |(Some l,None) -> Del l
     |(Some l,Some r) -> diff l r
-    |(None , None) -> Same None
+    |(None , None) -> NN
 

@@ -35,22 +35,25 @@ type DiffResult<'T,'U> =
 | Add of 'T
 | Del of 'T
 | Same of 'T
+| DiffComp of Map<string,DiffResult<'T,'U>>
+| DiffList of DiffResult<'T,'U> list
 | NN 
 
 let getDiffResultFstValue = 
     function
-    | Diff (l,r) -> l
-    | Add x -> x
-    | Del x -> x
-    | Same x -> x
-    | NN -> failwith "can't get value from NN"
+    |Diff (l,r) -> l
+    |Add x -> x
+    |Del x -> x
+    |Same x -> x    
+    |NN|DiffComp _|DiffList _ -> failwith "can't get value from it"
 let getDiffResultSndValue = 
     function
-    | Diff (l,r) -> r
-    | Add x -> x
-    | Del x -> x
-    | Same x -> x
-    | NN -> failwith "can't get value from NN"
+    |Diff (l,r) -> r
+    |Add x -> x
+    |Del x -> x
+    |Same x -> x
+    |NN|DiffComp _|DiffList _ -> failwith "can't get value from it"
+
 
 let inline diff lhs rhs = 
     match lhs=rhs with
