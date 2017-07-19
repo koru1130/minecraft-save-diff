@@ -101,3 +101,5 @@ let rec formatStringTree prefix tree : seq<string> =
                 Seq.ofList trees
                 |>Seq.collect (formatStringTree ("  "+prefix))
     }
+   
+let (|Ref|) x = !x

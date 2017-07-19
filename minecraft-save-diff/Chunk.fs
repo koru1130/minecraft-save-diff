@@ -17,12 +17,39 @@ type Pos = {
 }
 
 [<Struct>]
+type RawSection = {
+    Y: byte ref;
+    Blocks: byte[] ref;
+    Add: byte[] ref option;
+    Data: byte[] ref;
+    BlockLight: byte[] ref;
+    SkyLight: byte[] ref;
+}
+
+[<Struct>]
 type Section = {
     Y: byte;
     BlockID: int[];
     Data: byte[];
     BlockLight: byte[];
     SkyLight: byte[];
+}
+
+[<Struct>]
+type RawChunk = {
+    DataVersion: int ref;
+    xPos: int ref;
+    zPos: int ref;
+    LastUpdate: int64 ref;
+    LightPopulated: byte ref;
+    TerrainPopulated: byte ref;
+    InhabitedTime: int64 ref;
+    Biomes: byte[] ref option;
+    HeightMap: int[] ref;
+    Sections: RawSection [];
+    Entities: NBT.Payload[] ref;
+    TileEntities: NBT.Payload[] ref;
+    TileTicks: NBT.Payload[] ref option;                
 }
 
 [<Struct>]
@@ -46,17 +73,17 @@ let find map name =
     match Map.tryFind name map with
     | Some x -> x
     | None -> failwithf "error: not found %s" name
-    |> (!) |> NBT.Payload.get
-let tryFind map name = Map.tryFind name map |> Option.map ((!) >> NBT.Payload.get)
+    |>NBT.Payload.get
+let tryFind map name = Map.tryFind name map |> Option.map NBT.Payload.get
 let parse nbt =
     match nbt with
     | NBT.Payload.Compound map ->
-        let DataVersion = find map "DataVersion"
-        let map = find map "Level"
+        let DataVersion = find !map "DataVersion"
+        let (Ref map) = find !map "Level"
         let findMap name = find map name
         let tryFindMap name = tryFind map name
         {
-            DataVersion= DataVersion
+            RawChunk.DataVersion= DataVersion
             xPos= findMap "xPos"
             zPos= findMap "zPos"
             LightPopulated= findMap "LightPopulated"
@@ -65,49 +92,78 @@ let parse nbt =
             InhabitedTime= findMap "InhabitedTime"
             Biomes= tryFindMap "Biomes"
             HeightMap= findMap "HeightMap"
-            Sections=
-                lazy 
-                (
-                    findMap "Sections"
-                    |>Array.map NBT.Payload.get
-                    |>Array.map
-                        (fun map ->                                        
-                           let findMap name = find map name
-                           let tryFindMap name = tryFind map name
-                           let (blocks:byte[]) = findMap "Blocks"
-                           let Add = tryFindMap "Add" |> Option.map Utils.bytes2Nibbles
-                           
-                           let result = {
-                               Y= findMap "Y"
-                               BlockID= 
-                                   match Add with
-                                   | Some add -> Array.map2 (fun block add -> int block + ((int add)<<<8) ) blocks add
-                                   | None -> Array.map int blocks
-                               Data= findMap "Data" |> Utils.bytes2Nibbles
-                               BlockLight= findMap "BlockLight" |> Utils.bytes2Nibbles
-                               SkyLight= findMap "SkyLight" |> Utils.bytes2Nibbles
-                           }
-                           (result.Y,result)
-                        )
-                    |>Map.ofArray
-                )
-            Entities= findMap "Entities"
-            TileEntities= 
-                findMap "TileEntities"
+            Sections=                
+                findMap "Sections"
+                |>(!)                
+                |>Array.map (NBT.Payload.get >> (!))
                 |>Array.map
-                    (fun nbt ->
-                        let findNBT = find <| NBT.Payload.get nbt
-                        (
-                            {
-                                x = findNBT "x"
-                                y = findNBT "y"
-                                z = findNBT "z"
-                            },nbt)
+                    (fun map ->                                        
+                       let findMap name = find map name
+                       let tryFindMap name = tryFind map name
+                       {
+                           RawSection.Y= findMap "Y"
+                           Blocks= findMap "Blocks"
+                           Add = tryFindMap "Add"
+                           Data= findMap "Data"
+                           BlockLight= findMap "BlockLight"
+                           SkyLight= findMap "SkyLight"
+                       }
+                       
                     )
-                |>Map.ofArray
+            Entities= findMap "Entities"
+            TileEntities= findMap "TileEntities"                
             TileTicks= tryFindMap "TileTicks"
         }
     | _ -> failwith "not Compound"
+
+
+let rawChunk2Chunk (raw:RawChunk) =
+    {
+        DataVersion = !raw.DataVersion
+        xPos= !raw.xPos
+        zPos= !raw.zPos
+        LastUpdate= !raw.LastUpdate
+        LightPopulated= !raw.LightPopulated
+        TerrainPopulated= !raw.TerrainPopulated
+        InhabitedTime= !raw.InhabitedTime
+        Biomes= Option.map (!) raw.Biomes
+        HeightMap= !raw.HeightMap
+        Sections=
+            lazy
+                raw.Sections
+                |>Array.map 
+                    (fun x ->
+                        let result = {
+                            Y= !x.Y
+                            BlockID=
+                                let add = x.Add |> Option.map ( (!) >> Utils.bytes2Nibbles)
+                                match x.Add with
+                                | Some add -> Array.map2 (fun block add -> int block + ((int add)<<<8) ) !x.Blocks !add
+                                | None -> Array.map int !x.Blocks
+                            Data= !x.Data |> bytes2Nibbles
+                            BlockLight = !x.BlockLight |> bytes2Nibbles
+                            SkyLight = !x.SkyLight |> bytes2Nibbles
+                        }
+                        (!x.Y,result)
+                    )
+                |>Map.ofArray
+        Entities= !raw.Entities
+        TileEntities= 
+            !raw.TileEntities
+            |>Array.map
+                (fun nbt ->
+                    let findNBT = NBT.Payload.get nbt |> (!) |> find
+                    (
+                        {
+                            x = !(findNBT "x")
+                            y = !(findNBT "y")
+                            z = !(findNBT "z")
+                        },nbt)
+                )
+            |>Map.ofArray
+        TileTicks= Option.map (!) raw.TileTicks
+    }
+
 let tryParse nbt =
     try
         Some(parse nbt)

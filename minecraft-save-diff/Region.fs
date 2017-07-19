@@ -21,7 +21,7 @@ let getTimeStamps (mca : byte[]) =
         BitConverter.ToInt32((Array.rev <| List.toArray list),0)
         )
 
-let getRawChunkByPos pos (mca:byte[]) =
+let getRawRawChunkByPos pos (mca:byte[]) =
     if pos > 1023 || pos < 0 then None else
     let (offset,sectorCount) = (getChunkLocations mca).[pos]      
     if offset = 0 then None else
@@ -35,10 +35,14 @@ let getRawChunkByPos pos (mca:byte[]) =
                       |_ -> failwith "error zip type"
                       )
 
-let getChunkByPos (mca:byte[]) pos =
-    getRawChunkByPos pos mca
+let getRawChunkByPos (mca:byte[]) pos =
+    getRawRawChunkByPos pos mca
     |>Option.bind NBT.parse
     |>Option.bind Chunk.tryParse
+
+let getChunkByPos (mca:byte[]) pos =
+    getRawChunkByPos mca pos
+    |>Option.map Chunk.rawChunk2Chunk
     
 type RegionFile(region:byte[]) =         
     member this.getChunkLocations = getChunkLocations region        

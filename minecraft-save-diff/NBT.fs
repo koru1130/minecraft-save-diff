@@ -4,17 +4,17 @@ open Utils
 type Name = string
 
 type Payload =        
-    | Byte of byte
-    | Short of int16
-    | Int of int
-    | Long of int64
-    | Float of single
-    | Double of double
-    | ByteArray of byte[]
-    | String of string
-    | List of Payload[]
-    | Compound of Map<Name,Ref<Payload>>
-    | IntArray of int[]
+    | Byte of byte ref
+    | Short of int16 ref
+    | Int of int ref
+    | Long of int64 ref
+    | Float of single ref
+    | Double of double ref
+    | ByteArray of byte[] ref
+    | String of string ref
+    | List of Payload[] ref
+    | Compound of Map<Name,Payload> ref
+    | IntArray of int[] ref
 
     static member get<'T> x =
         let temp =
@@ -35,14 +35,14 @@ type Payload =
     static member toStringTree rootName x =
         match x with
         | Compound x ->
-            x
+            !x
             |>Map.map
-                (fun name payload -> Payload.toStringTree name !payload)
+                (fun name payload -> Payload.toStringTree name payload)
             |>Map.toList
             |>List.map snd
             |>fun x -> Branch (rootName,x)
         | List x ->
-            x 
+            !x 
             |>Array.mapi (fun i x -> Payload.toStringTree (string i) x)
             |>fun x -> Branch (rootName,List.ofArray x)
         | x -> 
@@ -113,24 +113,26 @@ type Reader(stream: System.IO.Stream) =
     member this.readType() = this.ReadByte()
 
     member this.readByte() = 
-        Payload.Byte <| this.ReadByte()
+        this.ReadByte() |> ref |> Payload.Byte
     member this.readShort() =
-        Payload.Short <| this.ReadInt16()
+        this.ReadInt16() |> ref |> Payload.Short
     member this.readInt() =
-        Payload.Int <| this.ReadInt32()
+        this.ReadInt32() |> ref |> Payload.Int
     member this.readLong() =
-        Payload.Long <| this.ReadInt64()
+        this.ReadInt64() |> ref |> Payload.Long
     member this.readFloat() =
-        Payload.Float <| this.ReadSingle()
+        this.ReadSingle() |> ref |> Payload.Float
     member this.readDouble() =
-        Payload.Double <| this.ReadDouble()                
+        this.ReadDouble() |> ref |> Payload.Double
 
     member this.readByteArray() =
         let length = this.ReadInt32()
         this.ReadBytes(length)
+        |>ref
         |>Payload.ByteArray
     member this.readString() =
         this.readName()
+        |>ref
         |>Payload.String        
     member this.readList() =
         let typeId = this.readType()
@@ -138,14 +140,15 @@ type Reader(stream: System.IO.Stream) =
         let arr = Array.zeroCreate length
         for i in 0..(length-1) do
             Array.set arr i <| this.readPayload typeId
-        Payload.List <| arr
+        arr |>ref |> Payload.List
     member this.readCompound() =
         let rec loop accList =
             match this.readTag() with
             | Tag.End -> accList
-            | Tag.Tag (name,payload) -> loop <| (name,ref payload) :: accList
+            | Tag.Tag (name,payload) -> loop <| (name,payload) :: accList
         loop []
         |>Map.ofList
+        |>ref
         |>Payload.Compound
         
     member this.readIntArray() =
@@ -153,7 +156,7 @@ type Reader(stream: System.IO.Stream) =
         let arr = Array.zeroCreate length
         for i in 0..(length-1) do
             Array.set arr i <| this.ReadInt32()
-        Payload.IntArray <| arr
+        arr |>ref |>Payload.IntArray
 
     member this.readName() = 
         let length = this.ReadUInt16()
@@ -247,20 +250,20 @@ let rec diff lhs rhs =
     let keysSet = Utils.keysSet
     match (lhs,rhs) with
     |(l,r) when l=r -> Same lhs
-    |(Payload.Compound l,Payload.Compound r) -> 
+    |(Payload.Compound (Ref l),Payload.Compound (Ref r)) -> 
         (keysSet l) + (keysSet r)
         |>Set.toSeq
         |>Seq.map 
             (fun key ->
                 let result = 
                    diffOption
-                       (Option.map (!) (Map.tryFind key l))
-                       (Option.map (!) (Map.tryFind key r))                     
+                       (Map.tryFind key l)
+                       (Map.tryFind key r)
                 (key,result)
             )
         |>Map.ofSeq
         |>DiffComp
-    |(Payload.List l,Payload.List r) ->
+    |(Payload.List (Ref l),Payload.List (Ref r)) ->        
         let (length,other) = 
             match compare l.Length r.Length with
             | 1 -> (r.Length,Some l.[r.Length..])
