@@ -228,7 +228,9 @@ let diffBlocks lhs rhs =
          |>Some
     |true -> None
     
-type BlockDiffResult = 
+
+    
+    type BlockDiffResult = 
 | Diff of BlockDiffResult
 | Add of Section
 | Del of Section
@@ -261,7 +263,7 @@ let createBlockDiffResult blockID data blockLight skyLight dataTag =
         dataTag=dataTag;
     }
 
-let diffChunk chunk1 chunk2 =
+let diffChunkSections chunk1 chunk2 =
     let pos2CordXZ = pos2Cord chunk1.xPos chunk1.zPos
     let (sec1,sec2) = (!~chunk1.Sections,!~chunk2.Sections)
     (keysSet sec1) + (keysSet sec2)
@@ -304,15 +306,3 @@ let diffChunk chunk1 chunk2 =
             |Same x -> Same (key,x)
             |NN -> failwith "WTF"
         )
-    |>Seq.fold
-        (fun state diffResult ->
-            let (diff,add,del,same) = state
-            match diffResult with
-            |Diff x -> ((List.ofArray x) @ diff,add,del,same)
-            |Add x -> (diff,x::add,del,same)
-            |Del x -> (diff,add,x::del,same)
-            |Same x -> (diff,add,del,x::same)
-            |NN -> failwith "WTF"
-
-        ) ([],[],[],[])
-    |>fun (diff,add,del,same) -> (Map.ofList diff,add,del,same)

@@ -1,4 +1,5 @@
 ﻿module NBT
+open Utils
 
 type Name = string
 
@@ -30,7 +31,31 @@ type Payload =
             | Compound x -> box x
             | IntArray x -> box x               
 
-        temp :?> 'T        
+        temp :?> 'T
+    static member toStringTree rootName x =
+        match x with
+        | Compound x ->
+            x
+            |>Map.map
+                (fun name payload -> Payload.toStringTree name !payload)
+            |>Map.toList
+            |>List.map snd
+            |>fun x -> Branch (rootName,x)
+        | List x ->
+            x 
+            |>Array.mapi (fun i x -> Payload.toStringTree (string i) x)
+            |>fun x -> Branch (rootName,List.ofArray x)
+        | x -> 
+            let str = x.ToString()
+            match str with
+            |Line x -> Leaf (sprintf "%s: %s" rootName x)
+            |Lines x -> Branch (rootName,List.map Leaf x)
+    
+    //member this.toStringTree(rootName:string) = Payload.toStringTree rootName this
+    member this.StringTree = Payload.toStringTree "" this
+
+    //override this.ToString() =
+        
 
 type Tag = 
     | End
@@ -149,7 +174,7 @@ type Reader(stream: System.IO.Stream) =
             | 10uy -> this.readCompound()
             | 11uy -> this.readIntArray()
             | _ -> failwith "error typeId"
-
+        
     member this.readTag() =
         match this.readType() with
         | 0uy -> Tag.End
@@ -170,6 +195,53 @@ type NBTDiffResult =
 | Diff of lhs:Option<Payload> * rhs:Option<Payload>
 | Comp of Map<Name,NBTDiffResult>
 | List of NBTDiffResult[]
+    static member toStringTree outputAddDel rootName x =
+        match x with
+        | Comp x ->
+            x
+            |>Map.map (NBTDiffResult.toStringTree outputAddDel)
+            |>Map.toList
+            |>List.map snd
+            |>fun x -> Branch (rootName,x)
+        | List x ->
+            x 
+            |>Array.mapi (fun i x -> NBTDiffResult.toStringTree outputAddDel (string i) x)
+            |>fun x -> Branch (rootName,List.ofArray x)
+        | Diff (l,r) -> 
+            match (l,r) with
+            |(Some l,Some r) ->
+                match (l,r) with
+                |(Compound _,_)|(_,Compound _)|(Payload.List _,_)|(_,Payload.List _) as x -> 
+                    let (l,r) = x
+                    Branch (rootName,[l.StringTree;Leaf " -> ";r.StringTree])
+                |(l,r) ->
+                    match (l.ToString(),r.ToString()) with
+                    |(Line l,Line r) -> Leaf (rootName + ": " + l+" -> "+r)
+                    |(Line l,Lines r) -> Branch (rootName,Leaf (l+" ->")::List.map Leaf r)
+                    |(Lines l,Line r) -> Branch (rootName,List.map Leaf l@[Leaf(" -> "+r)])
+                    |(Lines l,Lines r) -> Branch (rootName,List.map Leaf l@Leaf " ->"::List.map Leaf r)
+            |(Some l,None) -> 
+                match outputAddDel with
+                |(_,false) -> Leaf ""
+                |(_,true) ->                    
+                    match l with 
+                    |(Compound _)|(Payload.List _) as x -> Branch (rootName,[Leaf "-";x.StringTree])
+                    |x  -> 
+                        match x.ToString() with
+                        |Line x -> Leaf (rootName + ": -" + x)
+                        |Lines x -> Branch (rootName,Leaf "-" :: List.map Leaf x)
+            |(None,Some r) ->
+                match outputAddDel with
+                |(false,_) -> Leaf ""
+                |(true,_) ->
+                    match r with 
+                    |(Compound _)|(Payload.List _) as x -> Branch (rootName,[Leaf "+";x.StringTree])
+                    |x  -> 
+                        match x.ToString() with
+                        |Line x -> Leaf (rootName + ": +" + x)
+                        |Lines x -> Branch (rootName,Leaf "+" :: List.map Leaf x)
+            |(None,None) -> failwith "WTF"
+        | Same _ -> Leaf ""
 
 let rec diff lhs rhs =
     let keysSet = Utils.keysSet
@@ -208,3 +280,4 @@ and diffOption lhs rhs =
     |(Some l,None) -> Diff(Some l,None)
     |(Some l,Some r) -> diff l r
     |(None , None) -> Same None
+
