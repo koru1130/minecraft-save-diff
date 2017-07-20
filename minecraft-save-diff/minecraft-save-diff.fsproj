@@ -69,12 +69,16 @@
     </None>
   </ItemGroup>
   <ItemGroup>
-    <Reference Include="mscorlib" />
-    <Reference Include="FSharp.Core">
-      <Name>FSharp.Core</Name>
-      <AssemblyName>FSharp.Core.dll</AssemblyName>
-      <HintPath>$(MSBuildProgramFiles32)\Reference Assemblies\Microsoft\FSharp\.NETFramework\v4.0\$(TargetFSharpCoreVersion)\FSharp.Core.dll</HintPath>
+    <Reference Include="BlackFox.ColoredPrintf">
+      <HintPath>..\packages\BlackFox.ColoredPrintf.0.3.0\lib\net40\BlackFox.ColoredPrintf.dll</HintPath>
     </Reference>
+    <Reference Include="BlackFox.MasterOfFoo">
+      <HintPath>..\packages\BlackFox.MasterOfFoo.0.2.0\lib\net40\BlackFox.MasterOfFoo.dll</HintPath>
+    </Reference>
+    <Reference Include="FSharp.Core">
+      <HintPath>..\packages\FSharp.Core.4.2.1\lib\net45\FSharp.Core.dll</HintPath>
+    </Reference>
+    <Reference Include="mscorlib" />
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="System.Numerics" />

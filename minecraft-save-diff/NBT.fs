@@ -54,7 +54,19 @@ type Payload =
     //member this.toStringTree(rootName:string) = Payload.toStringTree rootName this
     member this.StringTree = Payload.toStringTree "" this
 
-    //override this.ToString() =
+    override this.ToString() =
+        match this with
+        | Byte x -> (!x).ToString() + "b"
+        | Short x -> (!x).ToString() + "s"
+        | Int x -> (!x).ToString()
+        | Long x -> (!x).ToString() + "l"
+        | Float x -> (!x).ToString() + "f"
+        | Double x -> (!x).ToString() + "d"
+        | ByteArray x -> (!x).ToString()
+        | String x -> "\"" + !x + "\""
+        | List x -> "List"            
+        | Compound x -> "Compound"
+        | IntArray x -> (!x).ToString()
         
 
 type Tag = 
@@ -201,6 +213,10 @@ let parse (rawNBT:byte[]) =
 type NBTDiffResult = DiffResult<Payload,Payload*Payload>
 
 let rec NBTDiffResultToStringTree outputAddDel rootName x =
+    let rootName = 
+        match rootName with
+        | "" -> ""
+        | x -> "$yellow[" + x + "]]"
     match x with
     | DiffComp x ->
         x
@@ -216,35 +232,35 @@ let rec NBTDiffResultToStringTree outputAddDel rootName x =
         match (l,r) with
         |(Compound _,_)|(_,Compound _)|(Payload.List _,_)|(_,Payload.List _) as x -> 
             let (l,r) = x
-            Branch (rootName,[l.StringTree;Leaf " -> ";r.StringTree])
+            Branch (rootName,[Leaf "$red[";l.StringTree;Leaf "]] $yellow[->]] $green[";r.StringTree;Leaf "]]"])
         |(l,r) ->
             match (l.ToString(),r.ToString()) with
-            |(Line l,Line r) -> Leaf (rootName + ": " + l+" -> "+r)
-            |(Line l,Lines r) -> Branch (rootName,Leaf (l+" ->")::List.map Leaf r)
-            |(Lines l,Line r) -> Branch (rootName,List.map Leaf l@[Leaf(" -> "+r)])
-            |(Lines l,Lines r) -> Branch (rootName,List.map Leaf l@Leaf " ->"::List.map Leaf r)
+            |(Line l,Line r) -> Leaf (rootName + ": $red[" + l+"]] $yellow[->]] $green["+r+"]]")
+            |(Line l,Lines r) -> Branch (rootName,Leaf ("$red["+l+"]] $yellow[->]] $green[")::List.map Leaf r @ [Leaf "]]"])
+            |(Lines l,Line r) -> Branch (rootName,Leaf "$red[" ::List.map Leaf l@[Leaf("]]  $yellow[->]] $green["+r+"]]")])
+            |(Lines l,Lines r) -> Branch (rootName,Leaf "$red[" :: List.map Leaf l @Leaf "]]  $yellow[->]] $green"::List.map Leaf r @ [Leaf "]]"])
     | Del x ->
         match outputAddDel with
         |(_,false) -> Leaf ""
         |(_,true) ->                    
             match x with 
-            |(Compound _)|(Payload.List _) as x -> Branch (rootName,[Leaf "-";x.StringTree])
+            |(Compound _)|(Payload.List _) as x -> Branch (rootName,[Leaf "$red[-";x.StringTree;Leaf "]]"])
             |x  -> 
                 match x.ToString() with
-                |Line x -> Leaf (rootName + ": -" + x)
-                |Lines x -> Branch (rootName,Leaf "-" :: List.map Leaf x)
+                |Line x -> Leaf ("$red[" + rootName + ": -" + x + "]]")
+                |Lines x -> Branch (rootName,Leaf "$red[-" :: List.map Leaf x @ [Leaf "]]"])
     | Add x ->
         match outputAddDel with
         |(false,_) -> Leaf ""
         |(true,_) ->
             match x with 
-            |(Compound _)|(Payload.List _) as x -> Branch (rootName,[Leaf "+";x.StringTree])
+            |(Compound _)|(Payload.List _) as x -> Branch (rootName,[Leaf "$green[+";x.StringTree;Leaf "]]"])
             |x  -> 
                 match x.ToString() with
-                |Line x -> Leaf (rootName + ": +" + x)
-                |Lines x -> Branch (rootName,Leaf "+" :: List.map Leaf x)    
+                |Line x -> Leaf ("$green["+rootName + ": +" + x+"]]")
+                |Lines x -> Branch (rootName,Leaf "$green[+" :: List.map Leaf x @ [Leaf "]]"])    
     |NN -> failwith "WTF"
-    | Same _ -> Leaf ""
+    | Same _ -> Leaf "" 
 
 let rec diff lhs rhs =
     let keysSet = Utils.keysSet

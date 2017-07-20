@@ -54,7 +54,6 @@ let getDiffResultSndValue =
     |Same x -> x
     |NN|DiffComp _|DiffList _ -> failwith "can't get value from it"
 
-
 let inline diff lhs rhs = 
     match lhs=rhs with
     |true -> Same lhs
@@ -96,7 +95,7 @@ let rec formatStringTree prefix tree : seq<string> =
         |Leaf x -> 
             if (x<>"") then yield prefix + x
         |Branch (key,trees) ->
-            if (key<>"") then yield prefix + key
+            if (key<>"") then yield prefix + key + ":"
             yield!
                 Seq.ofList trees
                 |>Seq.collect (formatStringTree ("  "+prefix))
