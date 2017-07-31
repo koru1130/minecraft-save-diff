@@ -16,10 +16,10 @@ module main=
         //let level = new FileStream("level.dat",FileMode.Open)
         //let unziped = new Compression.GZipStream(level,Compression.CompressionMode.Decompress)
         //let reader = new NBT.NBTReader(unziped)
-        //printfn "%A" <| reader.readTag()        
-        
-        let mca1 = File.ReadAllBytes("r.0.-1.mca")
-        let mca2 = File.ReadAllBytes("r.0.-1_old.mca")
+        //printfn "%A" <| reader.readTag()                
+
+        let mca1 = File.ReadAllBytes(argv.[0])
+        let mca2 = File.ReadAllBytes(argv.[1])
         let read pos mca = Region.getChunkByPos mca pos 
         //let readNBT pos mca = 
         //    Region.getRawChunkByPos mca pos
